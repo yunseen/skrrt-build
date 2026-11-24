@@ -7,7 +7,7 @@ final class CrashProbeTests: XCTestCase {
 
     private func launch() -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += ["-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU"]
+        app.launchArguments += ["-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU", "-skrrt-reset"]
         app.launch()
         sleep(3)
         return app
