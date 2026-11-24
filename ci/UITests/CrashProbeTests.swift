@@ -93,3 +93,18 @@ final class CrashProbeTests: XCTestCase {
         add(attachment)
     }
 }
+
+extension CrashProbeTests {
+    func testZ_bareWebTap() {
+        let app = XCUIApplication()
+        app.launch()
+        sleep(10)
+        XCTAssertEqual(app.state, .runningForeground, "App died before tap")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).tap()
+        sleep(2)
+        XCTAssertEqual(app.state, .runningForeground, "App died after tap")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)).tap()
+        sleep(2)
+        XCTAssertEqual(app.state, .runningForeground, "App died after second tap")
+    }
+}
