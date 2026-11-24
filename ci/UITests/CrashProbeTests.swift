@@ -214,6 +214,7 @@ extension CrashProbeTests {
         let done = app.buttons.matching(NSPredicate(format: "label IN {'Готово','Done'}")).firstMatch
         XCTAssertTrue(done.waitForExistence(timeout: 6), "switcher did not open on start page")
         done.tap()
+        sleep(2)
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.58, dy: 0.93)).tap()
         let title = app.buttons.matching(NSPredicate(format: "label IN {'Закладки','Bookmarks'}")).firstMatch
         XCTAssertTrue(title.waitForExistence(timeout: 6), "library did not open on start page")
