@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to publish
+        required: true
+        default: "1.0.0"
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: yunseen/skrrt
+          token: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          path: app
+
+      - name: Select Xcode
+        run: |
+          latest=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$latest"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        working-directory: app
+        run: xcodegen generate
+
+      - name: Archive
+        working-directory: app
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Skrrt.xcodeproj \
+            -scheme Skrrt \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$GITHUB_WORKSPACE/build/Skrrt.xcarchive" \
+            MARKETING_VERSION="$VERSION" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" | tail -n 80
+
+      - name: Package
+        run: |
+          mkdir -p build/Payload
+          cp -R build/Skrrt.xcarchive/Products/Applications/Skrrt.app build/Payload/
+          cd build
+          zip -qry Skrrt.ipa Payload
+
+      - name: Publish release
+        run: |
+          gh release delete "v$VERSION" --repo yunseen/skrrt --yes --cleanup-tag || true
+          gh release create "v$VERSION" build/Skrrt.ipa \
+            --repo yunseen/skrrt \
+            --title "Skrrt $VERSION" \
+            --notes "Skrrt $VERSION for iOS 26 and later. Add the AltStore source from the readme or install the ipa with Sideloadly."
+
+      - name: Update source
+        working-directory: app
+        run: |
+          size=$(stat -f%z ../build/Skrrt.ipa)
+          date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          url="https://github.com/yunseen/skrrt/releases/download/v$VERSION/Skrrt.ipa"
+          jq --arg v "$VERSION" --arg d "$date" --arg u "$url" --argjson s "$size" \
+            '.apps[0].versions = ([{version: $v, date: $d, downloadURL: $u, size: $s, minOSVersion: "26.0", localizedDescription: ("Skrrt " + $v)}] + (.apps[0].versions | map(select(.version != $v))))' \
+            altstore.json > altstore.tmp
+          mv altstore.tmp altstore.json
+          git config user.name "yunseen"
+          git config user.email "252902354+yunseen@users.noreply.github.com"
+          git add altstore.json
+          git commit -m "Update source for $VERSION" || exit 0
+          git push
