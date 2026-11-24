@@ -44,7 +44,7 @@ jobs:
             -scheme Skrrt \
             -destination "platform=iOS Simulator,name=$name" \
             -resultBundlePath out/result.xcresult \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | tail -n 150
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | grep -E "Test Case|error:|Executed" | head -n 150
           exit 0
 
       - name: Collect
@@ -54,7 +54,7 @@ jobs:
           xcrun xcresulttool export diagnostics --path out/result.xcresult --output-path out/diagnostics || true
           sleep 5
           cp ~/Library/Logs/DiagnosticReports/*.ips out/ 2>/dev/null || true
-          rm -rf out/result.xcresult
+          rm -rf out/result.xcresult; find out -name "*.mp4" -delete
 
       - uses: actions/upload-artifact@v4
         if: always()

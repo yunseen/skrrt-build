@@ -2,61 +2,88 @@ import XCTest
 
 final class CrashProbeTests: XCTestCase {
     override func setUp() {
-        continueAfterFailure = true
+        continueAfterFailure = false
     }
 
-    func testFlow() {
+    private func launch() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU"]
         app.launch()
         sleep(2)
-        shot("01-start")
+        return app
+    }
 
-        let address = app.buttons.element(boundBy: 0)
-        address.tap()
-        sleep(2)
-        shot("02-address-editing")
-        alive(app, "after address tap")
-
+    private func loadPage(_ app: XCUIApplication) {
+        app.buttons.element(boundBy: 0).tap()
         let field = app.textFields.firstMatch
-        if field.waitForExistence(timeout: 3) {
-            field.typeText("example.com\n")
-        } else {
-            XCTFail("Address field did not appear")
-        }
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "address field missing")
+        field.typeText("example.com\n")
         sleep(8)
-        shot("03-page")
         alive(app, "after load")
+    }
 
-        tapIfExists(app.buttons["Back"])
+    private func tapAt(_ app: XCUIApplication, _ x: Double, _ y: Double, _ name: String) {
+        app.coordinate(withNormalizedOffset: CGVector(dx: x, dy: y)).tap()
+        sleep(2)
+        shot(name)
+        alive(app, "after tap \(name)")
+    }
+
+    func testA_switcherOnStartPage() {
+        let app = launch()
+        tapAt(app, 0.74, 0.93, "tabs-button-startpage")
+        tapAt(app, 0.80, 0.93, "done")
+    }
+
+    func testB_loadThenIdle() {
+        let app = launch()
+        loadPage(app)
+        sleep(15)
+        alive(app, "after idle")
+    }
+
+    func testC_tapBlankAfterLoad() {
+        let app = launch()
+        loadPage(app)
+        tapAt(app, 0.5, 0.3, "blank-page")
+    }
+
+    func testD_tapShieldAfterLoad() {
+        let app = launch()
+        loadPage(app)
+        tapAt(app, 0.5, 0.09, "shield")
+    }
+
+    func testE_tapBookAfterLoad() {
+        let app = launch()
+        loadPage(app)
+        tapAt(app, 0.58, 0.93, "book")
+    }
+
+    func testF_tapReloadAfterLoad() {
+        let app = launch()
+        loadPage(app)
+        tapAt(app, 0.90, 0.86, "reload")
+    }
+
+    func testG_tapTabsAfterLoad() {
+        let app = launch()
+        loadPage(app)
+        tapAt(app, 0.74, 0.93, "tabs-button")
+        tapAt(app, 0.80, 0.93, "done")
+    }
+
+    func testH_swipeThenTabs() {
+        let app = launch()
+        loadPage(app)
+        app.swipeUp()
         sleep(1)
-        shot("04-after-back")
-
-        let tabs = app.buttons.matching(NSPredicate(format: "label == '1'")).firstMatch
-        if tabs.exists {
-            tabs.tap()
-            sleep(2)
-            shot("05-switcher")
-            alive(app, "after switcher")
-            tapIfExists(app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Готово' OR label CONTAINS[c] 'Done'")).firstMatch)
-            sleep(1)
-        }
-
-        let more = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'More' OR label CONTAINS[c] 'Ещё'")).firstMatch
-        if more.exists {
-            more.tap()
-            sleep(1)
-            shot("06-menu")
-            alive(app, "after menu")
-        }
+        alive(app, "after swipe")
+        tapAt(app, 0.74, 0.93, "tabs-button")
     }
 
     private func alive(_ app: XCUIApplication, _ message: String) {
         XCTAssertEqual(app.state, .runningForeground, "App died: \(message)")
-    }
-
-    private func tapIfExists(_ element: XCUIElement) {
-        if element.exists { element.tap() }
     }
 
     private func shot(_ name: String) {
