@@ -45,7 +45,9 @@ jobs:
         if: always()
         run: |
           xcrun xcresulttool export attachments --path out/result.xcresult --output-path out/attachments || true
-          cp ~/Library/Logs/DiagnosticReports/*Skrrt* out/ 2>/dev/null || true
+          xcrun xcresulttool export diagnostics --path out/result.xcresult --output-path out/diagnostics || true
+          sleep 5
+          cp ~/Library/Logs/DiagnosticReports/*.ips out/ 2>/dev/null || true
           rm -rf out/result.xcresult
 
       - uses: actions/upload-artifact@v4
