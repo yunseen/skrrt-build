@@ -9,15 +9,26 @@ final class CrashProbeTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU"]
         app.launch()
-        sleep(2)
+        sleep(3)
         return app
     }
 
-    private func loadPage(_ app: XCUIApplication) {
-        app.buttons.element(boundBy: 0).tap()
-        let field = app.textFields.firstMatch
-        XCTAssertTrue(field.waitForExistence(timeout: 5), "address field missing")
-        field.typeText("example.com\n")
+    private func addressBar(_ app: XCUIApplication) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Поиск или адрес' OR label CONTAINS[c] 'Search or enter'")).firstMatch
+    }
+
+    private func openSearch(_ app: XCUIApplication) {
+        let bar = addressBar(app)
+        XCTAssertTrue(bar.waitForExistence(timeout: 10), "address bar missing")
+        bar.tap()
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5), "search field missing")
+        sleep(1)
+    }
+
+    private func loadPage(_ app: XCUIApplication, _ address: String = "example.com") {
+        openSearch(app)
+        app.textFields.firstMatch.typeText(address)
+        app.textFields.firstMatch.typeText("\n")
         sleep(8)
         alive(app, "after load")
     }
@@ -29,57 +40,119 @@ final class CrashProbeTests: XCTestCase {
         alive(app, "after tap \(name)")
     }
 
-    func testA_switcherOnStartPage() {
+    func testA_startPage() {
         let app = launch()
-        tapAt(app, 0.74, 0.93, "tabs-button-startpage")
-        tapAt(app, 0.80, 0.93, "done")
+        sleep(4)
+        shot("start-page")
+        alive(app, "start page idle")
+        tapAt(app, 0.5, 0.25, "tap-on-mascots")
+        tapAt(app, 0.5, 0.25, "tap-on-mascots-2")
     }
 
-    func testB_loadThenIdle() {
+    func testB_searchTypeAndGo() {
         let app = launch()
-        loadPage(app)
-        sleep(15)
-        alive(app, "after idle")
+        openSearch(app)
+        shot("search-open")
+        alive(app, "search open")
+        app.textFields.firstMatch.typeText("swift")
+        sleep(3)
+        shot("search-typed")
+        let go = app.buttons.matching(NSPredicate(format: "label IN {'Перейти','Go'}")).firstMatch
+        XCTAssertTrue(go.waitForExistence(timeout: 3), "Go button missing")
+        go.tap()
+        sleep(10)
+        shot("search-result")
+        alive(app, "after go")
+        tapAt(app, 0.5, 0.4, "tap-result")
     }
 
-    func testC_tapBlankAfterLoad() {
+    func testC_grabberKeyboard() {
+        let app = launch()
+        openSearch(app)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "keyboard should be up")
+        let field = app.textFields.firstMatch.frame
+        let screen = app.frame
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: (field.minY - 14) / screen.height))
+        let down = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: min(0.97, (field.minY + 120) / screen.height)))
+        start.press(forDuration: 0.1, thenDragTo: down)
+        sleep(2)
+        shot("after-drag-down")
+        XCTAssertFalse(app.keyboards.firstMatch.exists, "keyboard should hide after dragging down")
+        alive(app, "after drag down")
+        let field2 = app.textFields.firstMatch.frame
+        let start2 = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: (field2.minY - 14) / screen.height))
+        let up = app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: max(0.3, (field2.minY - 140) / screen.height)))
+        start2.press(forDuration: 0.1, thenDragTo: up)
+        sleep(2)
+        shot("after-drag-up")
+        XCTAssertTrue(app.keyboards.firstMatch.exists, "keyboard should show after dragging up")
+        alive(app, "after drag up")
+    }
+
+    func testD_loadThenTaps() {
         let app = launch()
         loadPage(app)
+        shot("page-loaded")
         tapAt(app, 0.5, 0.3, "blank-page")
-    }
-
-    func testD_tapShieldAfterLoad() {
-        let app = launch()
-        loadPage(app)
-        tapAt(app, 0.5, 0.09, "shield")
-    }
-
-    func testE_tapBookAfterLoad() {
-        let app = launch()
-        loadPage(app)
-        tapAt(app, 0.58, 0.93, "book")
-    }
-
-    func testF_tapReloadAfterLoad() {
-        let app = launch()
-        loadPage(app)
         tapAt(app, 0.90, 0.86, "reload")
-    }
-
-    func testG_tapTabsAfterLoad() {
-        let app = launch()
-        loadPage(app)
-        tapAt(app, 0.74, 0.93, "tabs-button")
-        tapAt(app, 0.80, 0.93, "done")
-    }
-
-    func testH_swipeThenTabs() {
-        let app = launch()
-        loadPage(app)
+        sleep(4)
+        tapAt(app, 0.5, 0.09, "shield")
         app.swipeUp()
         sleep(1)
         alive(app, "after swipe")
+        tapAt(app, 0.58, 0.93, "library")
+        tapAt(app, 0.5, 0.15, "dismiss-library")
+    }
+
+    func testE_switcher() {
+        let app = launch()
+        loadPage(app)
         tapAt(app, 0.74, 0.93, "tabs-button")
+        tapAt(app, 0.80, 0.93, "done")
+        tapAt(app, 0.74, 0.93, "tabs-button-again")
+    }
+
+    func testF_settings() {
+        let app = launch()
+        loadPage(app)
+        tapAt(app, 0.90, 0.93, "menu")
+        let settings = app.buttons.matching(NSPredicate(format: "label IN {'Настройки','Settings'}")).firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 4), "Settings item missing")
+        settings.tap()
+        sleep(2)
+        shot("settings-1")
+        alive(app, "settings open")
+        app.swipeUp()
+        sleep(1)
+        shot("settings-2")
+        app.swipeUp()
+        sleep(1)
+        shot("settings-3")
+        app.swipeUp()
+        sleep(1)
+        shot("settings-4")
+        alive(app, "settings scrolled")
+    }
+
+    func testG_addShortcut() {
+        let app = launch()
+        sleep(2)
+        let add = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Добавить' OR label CONTAINS[c] 'Add'")).firstMatch
+        XCTAssertTrue(add.waitForExistence(timeout: 8), "Add tile missing")
+        add.tap()
+        sleep(1)
+        let field = app.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 4), "editor field missing")
+        field.tap()
+        field.typeText("github.com")
+        sleep(10)
+        shot("shortcut-editor")
+        let save = app.buttons.matching(NSPredicate(format: "label IN {'Сохранить','Save'}")).firstMatch
+        XCTAssertTrue(save.exists, "Save button missing")
+        save.tap()
+        sleep(2)
+        shot("shortcut-added")
+        alive(app, "after add shortcut")
     }
 
     private func alive(_ app: XCUIApplication, _ message: String) {
@@ -91,20 +164,5 @@ final class CrashProbeTests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
-    }
-}
-
-extension CrashProbeTests {
-    func testZ_bareWebTap() {
-        let app = XCUIApplication()
-        app.launch()
-        sleep(10)
-        XCTAssertEqual(app.state, .runningForeground, "App died before tap")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.4)).tap()
-        sleep(2)
-        XCTAssertEqual(app.state, .runningForeground, "App died after tap")
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)).tap()
-        sleep(2)
-        XCTAssertEqual(app.state, .runningForeground, "App died after second tap")
     }
 }
