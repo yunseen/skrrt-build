@@ -1,0 +1,40 @@
+name: Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to compile
+        required: false
+        default: main
+
+jobs:
+  check:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: yunseen/skrrt
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.PUBLIC_REPO_TOKEN }}
+
+      - name: Select Xcode
+        run: |
+          latest=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$latest"
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate
+
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Skrrt.xcodeproj \
+            -scheme Skrrt \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | tee build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" | sort -u
