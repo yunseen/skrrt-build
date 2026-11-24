@@ -166,3 +166,74 @@ final class CrashProbeTests: XCTestCase {
         add(attachment)
     }
 }
+
+extension CrashProbeTests {
+    private func hitInfo(_ element: XCUIElement) -> String {
+        "exists=\(element.exists) hittable=\(element.isHittable)"
+    }
+
+    func testH_tabsButtonOpensSwitcherOnPage() {
+        let app = launchFresh()
+        loadPageFresh(app)
+        let tabs = app.buttons["1"]
+        XCTAssertTrue(tabs.waitForExistence(timeout: 5), "tabs button missing")
+        let info = hitInfo(tabs)
+        tabs.tap()
+        let done = app.buttons.matching(NSPredicate(format: "label IN {'Готово','Done'}")).firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 6), "switcher did not open (\(info))")
+    }
+
+    func testI_libraryButtonOpensSheetOnPage() {
+        let app = launchFresh()
+        loadPageFresh(app)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.58, dy: 0.93)).tap()
+        let title = app.buttons.matching(NSPredicate(format: "label IN {'Закладки','Bookmarks'}")).firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 6), "library did not open")
+    }
+
+    func testJ_menuButtonOpensOnPage() {
+        let app = launchFresh()
+        loadPageFresh(app)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.90, dy: 0.93)).tap()
+        let item = app.buttons.matching(NSPredicate(format: "label IN {'Новая вкладка','New Tab'}")).firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "menu did not open")
+    }
+
+    func testK_addressBarOpensSearchOnPage() {
+        let app = launchFresh()
+        loadPageFresh(app)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.86)).tap()
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5), "search did not open from the address bar")
+    }
+
+    func testL_startPageBottomButtons() {
+        let app = launchFresh()
+        let tabs = app.buttons["1"]
+        XCTAssertTrue(tabs.waitForExistence(timeout: 8), "tabs button missing")
+        tabs.tap()
+        let done = app.buttons.matching(NSPredicate(format: "label IN {'Готово','Done'}")).firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 6), "switcher did not open on start page")
+        done.tap()
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.58, dy: 0.93)).tap()
+        let title = app.buttons.matching(NSPredicate(format: "label IN {'Закладки','Bookmarks'}")).firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 6), "library did not open on start page")
+    }
+
+    private func launchFresh() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU", "-skrrt-reset"]
+        app.launch()
+        sleep(3)
+        return app
+    }
+
+    private func loadPageFresh(_ app: XCUIApplication) {
+        let bar = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Поиск или адрес' OR label CONTAINS[c] 'Search or enter'")).firstMatch
+        XCTAssertTrue(bar.waitForExistence(timeout: 10), "address bar missing")
+        bar.tap()
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5), "search field missing")
+        app.textFields.firstMatch.typeText("example.com")
+        app.textFields.firstMatch.typeText("\n")
+        sleep(8)
+    }
+}
