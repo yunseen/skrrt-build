@@ -1,0 +1,25 @@
+name: Skrrt
+include:
+  - ../app/project.yml
+targets:
+  SkrrtUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - UITests
+    dependencies:
+      - target: Skrrt
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.skrrt.uitests
+        TEST_TARGET_NAME: Skrrt
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Skrrt:
+    build:
+      targets:
+        Skrrt: all
+        SkrrtUITests: [test]
+    test:
+      targets:
+        - SkrrtUITests
