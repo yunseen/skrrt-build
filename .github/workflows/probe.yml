@@ -52,6 +52,7 @@ jobs:
           xcodebuild test \
             -project ci/Skrrt.xcodeproj \
             -scheme Skrrt \
+            ${ONLY:+-only-testing:SkrrtUITests/CrashProbeTests/$ONLY} 
             -destination "platform=iOS Simulator,name=$name" \
             -resultBundlePath out/result.xcresult \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" 2>&1 | grep -E "Test Case|error:|Executed" | head -n 150
