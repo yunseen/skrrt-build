@@ -267,3 +267,106 @@ extension CrashProbeTests {
         XCTAssertEqual(closeButtons.count, 1, "tab was not closed")
     }
 }
+
+extension CrashProbeTests {
+    private func button(_ app: XCUIApplication, _ fragments: [String]) -> XCUIElement {
+        let format = fragments.map { _ in "label CONTAINS %@" }.joined(separator: " OR ")
+        return app.buttons.matching(NSPredicate(format: format, argumentArray: fragments)).firstMatch
+    }
+
+    private func openSettingsScreen(_ app: XCUIApplication) {
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.90, dy: 0.93)).tap()
+        let item = button(app, ["Настройки", "Settings"])
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "Settings item missing")
+        item.tap()
+        sleep(2)
+    }
+
+    private func openPluginsScreen(_ app: XCUIApplication) {
+        openSettingsScreen(app)
+        let row = button(app, ["Плагины", "Plugins"])
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "Plugins row missing")
+        row.tap()
+        sleep(1)
+    }
+
+    private func createScriptPlugin(_ app: XCUIApplication, name: String) {
+        let add = button(app, ["Добавить плагин", "Add Plugin"])
+        XCTAssertTrue(add.waitForExistence(timeout: 5), "Add Plugin button missing")
+        add.tap()
+        let newScript = button(app, ["Новый скрипт", "New Script"])
+        XCTAssertTrue(newScript.waitForExistence(timeout: 4), "New Script option missing")
+        newScript.tap()
+        let field = app.textFields.firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "editor name field missing")
+        field.tap()
+        field.typeText(name)
+        let save = button(app, ["Сохранить", "Save"])
+        XCTAssertTrue(save.isEnabled, "Save should be enabled")
+        save.tap()
+        sleep(2)
+    }
+
+    func testN_pluginLifecycle() {
+        let app = launchFresh()
+        openPluginsScreen(app)
+        shot("plugins-list")
+        createScriptPlugin(app, name: "Тест")
+        let row = app.staticTexts["Тест"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "new plugin missing from the list")
+        shot("plugin-added")
+
+        row.press(forDuration: 1.2)
+        let rename = button(app, ["Переименовать", "Rename"])
+        XCTAssertTrue(rename.waitForExistence(timeout: 4), "context menu has no Rename")
+        rename.tap()
+        let nameField = app.alerts.textFields.firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 4), "rename alert missing")
+        nameField.typeText("2")
+        let alertSave = app.alerts.buttons.matching(NSPredicate(format: "label IN {'Сохранить','Save'}")).firstMatch
+        alertSave.tap()
+        sleep(1)
+        XCTAssertTrue(app.staticTexts["Тест2"].waitForExistence(timeout: 4), "plugin was not renamed")
+
+        app.staticTexts["Тест2"].press(forDuration: 1.2)
+        let delete = button(app, ["Удалить", "Delete"])
+        XCTAssertTrue(delete.waitForExistence(timeout: 4), "context menu has no Delete")
+        delete.tap()
+        sleep(2)
+        XCTAssertFalse(app.staticTexts["Тест2"].exists, "plugin was not deleted")
+    }
+
+    func testO_pluginRunsOnPage() {
+        let app = launchFresh()
+        openPluginsScreen(app)
+        createScriptPlugin(app, name: "Тест")
+        // back to the browser: plugins -> settings -> done
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        sleep(1)
+        let done = button(app, ["Готово", "Done"])
+        XCTAssertTrue(done.waitForExistence(timeout: 4), "Done missing")
+        done.tap()
+        sleep(2)
+        loadPageFresh(app)
+        let toast = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Hello from example.com'")).firstMatch
+        shot("plugin-page")
+        XCTAssertTrue(toast.exists || toast.waitForExistence(timeout: 6), "the plugin did not run on the page")
+    }
+
+    func testP_settingsPagesOpen() {
+        let app = launchFresh()
+        openSettingsScreen(app)
+        shot("settings-hub")
+        let pages = ["Поиск", "Главный экран", "Оформление", "Приватность", "Просмотр", "Плагины", "О приложении"]
+        for page in pages {
+            let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", page)).firstMatch
+            XCTAssertTrue(row.waitForExistence(timeout: 5), "row \(page) missing")
+            row.tap()
+            sleep(2)
+            shot("page-\(page)")
+            XCTAssertEqual(app.state, .runningForeground, "App died on \(page)")
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            sleep(1)
+        }
+    }
+}
