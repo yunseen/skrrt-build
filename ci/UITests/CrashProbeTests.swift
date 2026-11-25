@@ -238,3 +238,32 @@ extension CrashProbeTests {
         sleep(8)
     }
 }
+
+extension CrashProbeTests {
+    func testM_closeTabInSwitcher() {
+        let app = XCUIApplication()
+        app.launchArguments += ["-AppleLanguages", "(ru)", "-AppleLocale", "ru_RU", "-skrrt-reset"]
+        app.launch()
+        sleep(4)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.90, dy: 0.93)).tap()
+        let newTab = app.buttons.matching(NSPredicate(format: "label IN {'Новая вкладка','New Tab'}")).firstMatch
+        XCTAssertTrue(newTab.waitForExistence(timeout: 5), "menu item missing")
+        newTab.tap()
+        sleep(2)
+        let tabsButton = app.buttons["2"]
+        XCTAssertTrue(tabsButton.waitForExistence(timeout: 5), "tab count should be 2")
+        tabsButton.tap()
+        let closeButtons = app.buttons.matching(NSPredicate(format: "label IN {'Закрыть вкладку','Close Tab'}"))
+        XCTAssertTrue(closeButtons.firstMatch.waitForExistence(timeout: 6), "switcher has no close buttons")
+        XCTAssertEqual(closeButtons.count, 2, "two cards expected")
+        closeButtons.element(boundBy: 0).tap()
+        sleep(2)
+        let shotImage = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        shotImage.name = "after-close"
+        shotImage.lifetime = .keepAlways
+        add(shotImage)
+        let done = app.buttons.matching(NSPredicate(format: "label IN {'Готово','Done'}")).firstMatch
+        XCTAssertTrue(done.exists, "switcher closed instead of closing the tab")
+        XCTAssertEqual(closeButtons.count, 1, "tab was not closed")
+    }
+}
