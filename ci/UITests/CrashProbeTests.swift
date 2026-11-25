@@ -312,6 +312,10 @@ extension CrashProbeTests {
         openPluginsScreen(app)
         shot("plugins-list")
         createScriptPlugin(app, name: "Тест")
+        let mine = app.segmentedControls.buttons.matching(NSPredicate(format: "label IN {'Мои','Mine'}")).firstMatch
+        XCTAssertTrue(mine.waitForExistence(timeout: 4), "filter missing")
+        mine.tap()
+        sleep(1)
         let row = app.staticTexts["Тест"]
         XCTAssertTrue(row.waitForExistence(timeout: 5), "new plugin missing from the list")
         shot("plugin-added")
@@ -347,10 +351,16 @@ extension CrashProbeTests {
         XCTAssertTrue(done.waitForExistence(timeout: 4), "Done missing")
         done.tap()
         sleep(2)
-        loadPageFresh(app)
+        let bar = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] 'Поиск или адрес' OR label CONTAINS[c] 'Search or enter'")).firstMatch
+        XCTAssertTrue(bar.waitForExistence(timeout: 10), "address bar missing")
+        bar.tap()
+        XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5), "search field missing")
+        app.textFields.firstMatch.typeText("example.com")
+        app.textFields.firstMatch.typeText("
+")
         let toast = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Hello from example.com'")).firstMatch
+        XCTAssertTrue(toast.waitForExistence(timeout: 20), "the plugin did not run on the page")
         shot("plugin-page")
-        XCTAssertTrue(toast.exists || toast.waitForExistence(timeout: 6), "the plugin did not run on the page")
     }
 
     func testP_settingsPagesOpen() {
@@ -359,7 +369,7 @@ extension CrashProbeTests {
         shot("settings-hub")
         let pages = ["Поиск", "Главный экран", "Оформление", "Приватность", "Просмотр", "Плагины", "О приложении"]
         for page in pages {
-            let row = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", page)).firstMatch
+            let row = app.collectionViews.buttons.matching(NSPredicate(format: "label CONTAINS %@", page)).firstMatch
             XCTAssertTrue(row.waitForExistence(timeout: 5), "row \(page) missing")
             row.tap()
             sleep(2)
