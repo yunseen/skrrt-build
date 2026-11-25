@@ -326,6 +326,7 @@ extension CrashProbeTests {
         row.tap()
         sleep(2)
         shot("plugin-window")
+        for _ in 0..<6 where !button(app, ["Переименовать", "Rename"]).exists { app.swipeUp() }
         let rename = button(app, ["Переименовать", "Rename"])
         XCTAssertTrue(rename.waitForExistence(timeout: 4), "plugin window has no Rename")
         rename.tap()
@@ -335,6 +336,7 @@ extension CrashProbeTests {
         app.alerts.buttons.matching(NSPredicate(format: "label IN {'Сохранить','Save'}")).firstMatch.tap()
         sleep(1)
         XCTAssertTrue(app.navigationBars["Тест2"].waitForExistence(timeout: 4), "plugin was not renamed")
+        for _ in 0..<6 where !button(app, ["Удалить плагин", "Remove Plugin"]).exists { app.swipeUp() }
         let remove = button(app, ["Удалить плагин", "Remove Plugin"])
         XCTAssertTrue(remove.waitForExistence(timeout: 4), "plugin window has no Remove")
         remove.tap()
@@ -401,8 +403,11 @@ extension CrashProbeTests {
         XCTAssertTrue(installedPill.waitForExistence(timeout: 20), "plugin was not installed")
         shot("store-installed")
         // Back to the browser and open a page, then the site window.
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        sleep(1)
+        for _ in 0..<3 {
+            if button(app, ["Готово", "Done"]).exists { break }
+            app.navigationBars.buttons.element(boundBy: 0).tap()
+            sleep(1)
+        }
         button(app, ["Готово", "Done"]).tap()
         sleep(2)
         loadPageFresh(app)
