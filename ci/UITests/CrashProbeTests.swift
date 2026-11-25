@@ -287,11 +287,18 @@ extension CrashProbeTests {
         let row = button(app, ["Плагины", "Plugins"])
         XCTAssertTrue(row.waitForExistence(timeout: 5), "Plugins row missing")
         row.tap()
+        sleep(2)
+    }
+
+    private func showInstalled(_ app: XCUIApplication) {
+        let segment = app.segmentedControls.buttons.matching(NSPredicate(format: "label CONTAINS 'Установлено' OR label CONTAINS 'Installed'")).firstMatch
+        XCTAssertTrue(segment.waitForExistence(timeout: 5), "Installed segment missing")
+        segment.tap()
         sleep(1)
     }
 
     private func createScriptPlugin(_ app: XCUIApplication, name: String) {
-        let add = button(app, ["Добавить плагин", "Add Plugin"])
+        let add = app.navigationBars.buttons.matching(NSPredicate(format: "label IN {'Добавить плагин','Add Plugin'}")).firstMatch
         XCTAssertTrue(add.waitForExistence(timeout: 5), "Add Plugin button missing")
         add.tap()
         let newScript = button(app, ["Новый скрипт", "New Script"])
@@ -310,41 +317,37 @@ extension CrashProbeTests {
     func testN_pluginLifecycle() {
         let app = launchFresh()
         openPluginsScreen(app)
-        shot("plugins-list")
+        shot("plugins-store")
         createScriptPlugin(app, name: "Тест")
-        let mine = app.segmentedControls.buttons.matching(NSPredicate(format: "label IN {'Мои','Mine'}")).firstMatch
-        XCTAssertTrue(mine.waitForExistence(timeout: 4), "filter missing")
-        mine.tap()
-        sleep(1)
+        showInstalled(app)
         let row = app.staticTexts["Тест"]
-        XCTAssertTrue(row.waitForExistence(timeout: 5), "new plugin missing from the list")
-        shot("plugin-added")
-
-        row.press(forDuration: 1.2)
+        XCTAssertTrue(row.waitForExistence(timeout: 5), "new plugin missing from Installed")
+        shot("plugin-installed")
+        row.tap()
+        sleep(2)
+        shot("plugin-window")
         let rename = button(app, ["Переименовать", "Rename"])
-        XCTAssertTrue(rename.waitForExistence(timeout: 4), "context menu has no Rename")
+        XCTAssertTrue(rename.waitForExistence(timeout: 4), "plugin window has no Rename")
         rename.tap()
         let nameField = app.alerts.textFields.firstMatch
         XCTAssertTrue(nameField.waitForExistence(timeout: 4), "rename alert missing")
         nameField.typeText("2")
-        let alertSave = app.alerts.buttons.matching(NSPredicate(format: "label IN {'Сохранить','Save'}")).firstMatch
-        alertSave.tap()
+        app.alerts.buttons.matching(NSPredicate(format: "label IN {'Сохранить','Save'}")).firstMatch.tap()
         sleep(1)
-        XCTAssertTrue(app.staticTexts["Тест2"].waitForExistence(timeout: 4), "plugin was not renamed")
-
-        app.staticTexts["Тест2"].press(forDuration: 1.2)
-        let delete = button(app, ["Удалить", "Delete"])
-        XCTAssertTrue(delete.waitForExistence(timeout: 4), "context menu has no Delete")
-        delete.tap()
+        XCTAssertTrue(app.navigationBars["Тест2"].waitForExistence(timeout: 4), "plugin was not renamed")
+        let remove = button(app, ["Удалить плагин", "Remove Plugin"])
+        XCTAssertTrue(remove.waitForExistence(timeout: 4), "plugin window has no Remove")
+        remove.tap()
+        let confirm = app.sheets.buttons.matching(NSPredicate(format: "label IN {'Удалить плагин','Remove Plugin'}")).firstMatch
+        if confirm.waitForExistence(timeout: 3) { confirm.tap() }
         sleep(2)
-        XCTAssertFalse(app.staticTexts["Тест2"].exists, "plugin was not deleted")
+        XCTAssertFalse(app.staticTexts["Тест2"].exists, "plugin was not removed")
     }
 
     func testO_pluginRunsOnPage() {
         let app = launchFresh()
         openPluginsScreen(app)
         createScriptPlugin(app, name: "Тест")
-        // back to the browser: plugins -> settings -> done
         app.navigationBars.buttons.element(boundBy: 0).tap()
         sleep(1)
         let done = button(app, ["Готово", "Done"])
@@ -377,5 +380,85 @@ extension CrashProbeTests {
             app.navigationBars.buttons.element(boundBy: 0).tap()
             sleep(1)
         }
+    }
+
+    func testQ_storeInstallAndSiteWindow() {
+        let app = launchFresh()
+        openPluginsScreen(app)
+        // The store lists the plugins and one of them can be installed with a single tap.
+        let name = app.staticTexts["Чёрно-белый режим"]
+        let search = app.searchFields.firstMatch
+        if search.waitForExistence(timeout: 4) {
+            search.tap()
+            search.typeText("Чёрно")
+        }
+        XCTAssertTrue(name.waitForExistence(timeout: 10), "store does not list a plugin")
+        shot("store-search")
+        let get = app.buttons.matching(NSPredicate(format: "label IN {'Получить','Get'}")).firstMatch
+        XCTAssertTrue(get.waitForExistence(timeout: 5), "Get button missing")
+        get.tap()
+        let installedPill = app.buttons.matching(NSPredicate(format: "label IN {'Установлено','Installed'}")).firstMatch
+        XCTAssertTrue(installedPill.waitForExistence(timeout: 20), "plugin was not installed")
+        shot("store-installed")
+        // Back to the browser and open a page, then the site window.
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        sleep(1)
+        button(app, ["Готово", "Done"]).tap()
+        sleep(2)
+        loadPageFresh(app)
+        let puzzle = app.buttons.matching(NSPredicate(format: "label IN {'Этот сайт','This Site'}")).firstMatch
+        XCTAssertTrue(puzzle.waitForExistence(timeout: 8), "site button missing in the address bar")
+        puzzle.tap()
+        sleep(2)
+        shot("site-window")
+        XCTAssertTrue(app.staticTexts["Чёрно-белый режим"].waitForExistence(timeout: 5), "installed plugin is not listed for the site")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Cookie' OR label CONTAINS 'Cookies'")).firstMatch.exists, "cookies tool missing")
+        XCTAssertEqual(app.state, .runningForeground, "App died in the site window")
+    }
+
+    func testR_cookieManager() {
+        let app = launchFresh()
+        loadPageFresh(app)
+        let puzzle = app.buttons.matching(NSPredicate(format: "label IN {'Этот сайт','This Site'}")).firstMatch
+        XCTAssertTrue(puzzle.waitForExistence(timeout: 8), "site button missing")
+        puzzle.tap()
+        sleep(2)
+        let cookies = app.collectionViews.buttons.matching(NSPredicate(format: "label CONTAINS 'Cookie'")).firstMatch
+        XCTAssertTrue(cookies.waitForExistence(timeout: 5), "cookies row missing")
+        cookies.tap()
+        sleep(2)
+        shot("cookie-manager")
+        XCTAssertTrue(app.navigationBars["Cookie"].exists || app.navigationBars["Cookies"].exists, "cookie manager did not open")
+        XCTAssertEqual(app.state, .runningForeground, "App died in the cookie manager")
+    }
+
+    func testS_hideElement() {
+        let app = launchFresh()
+        loadPageFresh(app)
+        let puzzle = app.buttons.matching(NSPredicate(format: "label IN {'Этот сайт','This Site'}")).firstMatch
+        XCTAssertTrue(puzzle.waitForExistence(timeout: 8), "site button missing")
+        puzzle.tap()
+        sleep(2)
+        let hide = button(app, ["Скрыть элемент", "Hide an Element"])
+        XCTAssertTrue(hide.waitForExistence(timeout: 5), "Hide an Element missing")
+        hide.tap()
+        let hint = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Нажмите на элемент' OR label CONTAINS 'Tap the element'")).firstMatch
+        XCTAssertTrue(hint.waitForExistence(timeout: 6), "the picker did not start")
+        shot("picker-started")
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).tap()
+        sleep(1)
+        let confirm = app.buttons.matching(NSPredicate(format: "label IN {'Скрыть','Hide'}")).firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "the picker has no Hide button after a tap")
+        shot("picker-selected")
+        confirm.tap()
+        sleep(2)
+        XCTAssertFalse(hint.exists, "the picker did not close")
+        // The rule is listed in the site window.
+        puzzle.tap()
+        sleep(2)
+        let hidden = app.collectionViews.buttons.matching(NSPredicate(format: "label CONTAINS 'Скрытые элементы' OR label CONTAINS 'Hidden Elements'")).firstMatch
+        XCTAssertTrue(hidden.waitForExistence(timeout: 5), "Hidden Elements row missing")
+        shot("hidden-count")
+        XCTAssertEqual(app.state, .runningForeground, "App died while hiding an element")
     }
 }
