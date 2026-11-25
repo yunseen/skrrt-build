@@ -356,8 +356,7 @@ extension CrashProbeTests {
         bar.tap()
         XCTAssertTrue(app.textFields.firstMatch.waitForExistence(timeout: 5), "search field missing")
         app.textFields.firstMatch.typeText("example.com")
-        app.textFields.firstMatch.typeText("
-")
+        app.textFields.firstMatch.typeText("\n")
         let toast = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Hello from example.com'")).firstMatch
         XCTAssertTrue(toast.waitForExistence(timeout: 20), "the plugin did not run on the page")
         shot("plugin-page")
